@@ -1,4 +1,8 @@
-import { test, expect, request} from '@playwright/test';
+import { expect, request} from '@playwright/test';
+
+const config = {
+    site: 'https://jbreece.github.io/',
+}
 
 const functions = {
 
@@ -49,4 +53,4 @@ const functions = {
 
 }
 
-export default { functions };
+export default { functions, config };
