@@ -1,8 +1,10 @@
 import { expect, request} from '@playwright/test';
+import { type } from 'os';
 
 const config = {
     site: 'https://jbreece.github.io/',
     recursionDepth: 10,
+    defaultTimeout: 10000,
 }
 
 function normalizeUrl(base, href) {
@@ -51,7 +53,7 @@ const functions = {
             const normalizedTarget = normalizeUrl(current, target);
             // console.log(`Checking link: ${target}`);
             const response = await page.goto(normalizedTarget);
-            expect(response?.status(), `Failed to load link: ${normalizedTarget}`).toBeLessThan(400);
+            expect(response?.status(), `Failed to load link: ${normalizedTarget}`).toBeLessThan(config.defaultTimeout);
             const newPage = await page.context().newPage();
             await this.testInternalLinks(newPage, normalizedTarget, visited, depth + 1);  // recursive check - go to each internal link and do the same test
             await newPage.close();
@@ -61,29 +63,59 @@ const functions = {
             for(const url of visited) {
                 console.log(`•${url}`);
             }
+            return visited;
         }
     },
 
-    async testExternalLinks(page, site) {
-        await page.goto(site);
-        // get all external links on the page
-        const hrefs = await page.$$eval('a[href]', links => links.map(link => link.getAttribute('href')));
-        const externalLinks = hrefs.filter(href => 
-            href && href.startsWith('http') && !href.startsWith(site)
-        );
+    async testExternalLinks(page, internalPages) {
+        if(internalPages && typeof internalPages != "object" && internalPages.size === 0) {
+            await page.goto(site);
+            // get all external links on the page
+            const hrefs = await page.$$eval('a[href]', links => links.map(link => link.getAttribute('href')));
+            const externalLinks = hrefs.filter(href => 
+                href && href.startsWith('http') && !href.startsWith(site)
+            );
 
-        // log external links
-        console.log(`Found ${externalLinks.length} external links.`);
-        externalLinks.forEach(href => console.log(href));
+            // log external links
+            console.log(`Found ${externalLinks.length} external links.`);
+            externalLinks.forEach(href => console.log(href));
 
-        // check that each external link loads successfully
-        const apiRequestContext = await request.newContext();
-        for (const href of externalLinks) {
-            console.log(`Checking link: ${href}`);
-            const response = await apiRequestContext.head(href);
-            expect(response.status(), `Failed to load link: ${href}`).toBeLessThan(400);
+            // check that each external link loads successfully
+            const apiRequestContext = await request.newContext();
+            for (const href of externalLinks) {
+                console.log(`Checking link: ${href}`);
+                const response = await apiRequestContext.head(href);
+                expect(response.status(), `Failed to load link: ${href}`).toBeLessThan(config.defaultTimeout);
+            }
         }
-    }
+        else if (internalPages && typeof internalPages === "object" && internalPages.size > 0) {
+            const externalPages = new Set();
+            for (const pageUrl of internalPages) {
+                if (pageUrl.startsWith('#')) continue;
+                await page.goto(pageUrl);
+                // get all external links on the page
+                const hrefs = await page.$$eval('a[href]', links => links.map(link => link.getAttribute('href')));
+                const externalLinks = hrefs.filter(href => 
+                    href && href.startsWith('http') && !href.startsWith(pageUrl)
+                );
+                // check that each external link loads successfully
+                const apiRequestContext = await request.newContext();
+                for (const href of externalLinks) {
+                    // console.log(`Checking link: ${pageUrl} | ${href}`);
+                    const response = await apiRequestContext.head(href);
+                    expect(response.status(), `Failed to load link: ${href}`).toBeLessThan(config.defaultTimeout);
+                    externalPages.add(href);
+                }
+            }
+            console.log(`Completed checking external links. Total unique external links checked: ${externalPages.size}.  Links:`);
+            for(const url of externalPages) {
+                console.log(`•${url}`);
+            }
+        }
+        else {
+            throw new Error('InternalPages parameter must be a non-empty Set of URLs.');
+        }
+    },
 
 }
 

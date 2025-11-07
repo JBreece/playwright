@@ -9,6 +9,6 @@ test('My GitHub Pages site loads', async ({ page }) => {
 });
 
 test('Checking all links', async ({ page }) => {
-    await utils.functions.testInternalLinks(page, site);
-    await utils.functions.testExternalLinks(page, site);
+    const internalPages = await utils.functions.testInternalLinks(page, site);
+    await utils.functions.testExternalLinks(page, internalPages);
 });
