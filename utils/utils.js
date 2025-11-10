@@ -1,5 +1,4 @@
 import { expect, request} from '@playwright/test';
-import { type } from 'os';
 
 const config = {
     site: 'https://jbreece.github.io/',
